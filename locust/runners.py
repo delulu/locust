@@ -8,10 +8,11 @@ from uuid import uuid4
 from time import time
 
 import gevent
-import six
 from gevent import GreenletExit
 from gevent.pool import Group
+from gevent.lock import Semaphore
 
+import six
 from six.moves import xrange
 
 from . import events
@@ -43,6 +44,7 @@ class LocustRunner(object):
         self.exceptions = {}
         self.stats = global_stats
         self.step_load = options.step_load
+        self.gevent_lock = Semaphore()
 
         # register listener that resets stats when hatching is complete
         def on_hatch_complete(user_count):
@@ -107,11 +109,14 @@ class LocustRunner(object):
 
         bucket = self.weight_locusts(spawn_count)
         spawn_count = len(bucket)
+        
+        self.gevent_lock.acquire()
         if self.state == STATE_INIT or self.state == STATE_STOPPED:
             self.state = STATE_HATCHING
             self.num_clients = spawn_count
         else:
             self.num_clients += spawn_count
+        self.gevent_lock.release()
 
         logger.info("Hatching and swarming %i clients at the rate %g clients/s..." % (spawn_count, self.hatch_rate))
         occurrence_count = dict([(l.__name__, 0) for l in self.locust_classes])
@@ -190,6 +195,7 @@ class LocustRunner(object):
         # Dynamically changing the locust count
         if self.state != STATE_INIT and self.state != STATE_STOPPED:
             self.state = STATE_HATCHING
+            self.gevent_lock.acquire()
             if self.num_clients > locust_count:
                 # Kill some locusts
                 kill_count = self.num_clients - locust_count
@@ -202,6 +208,7 @@ class LocustRunner(object):
                 self.spawn_locusts(spawn_count=spawn_count)
             else:
                 events.hatch_complete.fire(user_count=self.num_clients)
+            self.gevent_lock.release()
         else:
             if hatch_rate:
                 self.hatch_rate = hatch_rate
