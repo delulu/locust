@@ -57,7 +57,7 @@ def find_locustfile(locustfile):
 def get_empty_argument_parser(add_help=True, default_config_files=DEFAULT_CONFIG_FILES):
     parser = configargparse.ArgumentParser(
         default_config_files=default_config_files, 
-        auto_env_var_prefix="LOCUST_", 
+        auto_env_var_prefix="LOCUSTA_", 
         add_env_var_help=False,
         add_help=add_help,
     )
